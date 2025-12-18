@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Party Question Cards</title>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --text:#111827;
+      --muted:#6b7280;
+      /* Mercedes-AMG PETRONAS 계열 민트 */
+      --mint:#00D2BE;
+      --mint-dark:#00b8a7;
+      --border:#e5e7eb;
+      --shadow: 0 18px 45px rgba(17,24,39,.10), 0 6px 16px rgba(17,24,39,.06);
+      --radius: 22px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      min-height:100vh;
+      display:grid;
+      place-items:center;
+      padding:20px;
+    }
+    .app{
+      width:min(680px, 94vw);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:16px;
+    }
+
+    /* Square flashcard (mobile-friendly) */
+    .card{
+      width:min(86vw, 420px);
+      aspect-ratio: 1 / 1;       /* 정사각형 */
+      border-radius: var(--radius);
+      background:#fff;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      user-select:none;
+      cursor:pointer;
+      outline:none;
+      position:relative;
+      overflow:hidden;
+    }
+
+    /* Center circular subtle gradient */
+    .card::before{
+      content:"";
+      position:absolute;
+      inset:-20%;
+      pointer-events:none;
+      background:
+        radial-gradient(circle at 50% 50%,
+          rgba(0,210,190,.14) 0%,
+          rgba(0,210,190,.08) 28%,
+          rgba(0,210,190,.03) 52%,
+          rgba(0,210,190,0) 72%);
+    }
+
+    .q{
+      position:relative;
+      z-index:1;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.22;
+      font-size: clamp(22px, 5.2vw, 34px);
+      padding: 6px 4px;
+    }
+    .sub{
+      position:relative;
+      z-index:1;
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .controls{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:center;
+    }
+    button{
+      appearance:none;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      font-weight: 700;
+      padding: 12px 16px;
+      border-radius: 14px;
+      cursor:pointer;
+      transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+      min-width: 110px;
+    }
+    button:hover{
+      border-color: rgba(0,210,190,.55);
+      box-shadow: 0 0 0 4px rgba(0,210,190,.14);
+    }
+    button:disabled{
+      opacity:.45;
+      cursor:not-allowed;
+      box-shadow:none;
+      border-color: var(--border);
+    }
+    .primary{
+      background: var(--mint);
+      border-color: var(--mint);
+      color: #061a17;
+    }
+    .primary:hover{
+      background: var(--mint-dark);
+      border-color: var(--mint-dark);
+      box-shadow: 0 0 0 4px rgba(0,210,190,.18);
+    }
+
+    .progress{
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .progress b{ color: var(--text); font-weight:800; }
+
+    @media (max-width: 360px){
+      button{ min-width: 96px; padding: 11px 14px; }
+      .card{ width: 92vw; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <div id="card" class="card" role="button" tabindex="0" aria-label="카드 클릭: 다음 질문">
+      <div>
+        <div id="q" class="q">Start를 눌러 질문을 시작하세요</div>
+        <div id="sub" class="sub"></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="startBtn" class="primary">Start</button>
+      <button id="nextBtn" disabled>Next</button>
+      <button id="resetBtn">Reset</button>
+    </div>
+
+    <div id="progress" class="progress"></div>
+  </main>
+
+  <script>
+    // ===== 질문만 여기 바꾸시면 됩니다 =====
+    const QUESTIONS = [
+      "올해 가장 기억에 남는 순간은?",
+      "내년에 꼭 해보고 싶은 한 가지는?",
+      "올해 가장 잘한 소비는?",
+      "최근 가장 많이 들은 노래는?",
+      "서로에게 고마웠던 점 한 가지씩 말하기",
+      "지금 당장 여행 간다면 어디로 갈 건가요?",
+      "올해 가장 크게 배운 교훈은?",
+      "올해의 나를 한 단어로 표현한다면?"
+    ];
+
+    let deck = [];
+    let total = 0;
+    let used = 0;
+    let started = false;
+
+    function shuffle(arr){
+      for(let i = arr.length - 1; i > 0; i--){
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+    function normalize(list){
+      const cleaned = list.map(s => (typeof s === "string" ? s.trim() : "")).filter(Boolean);
+      const seen = new Set();
+      const uniq = [];
+      for(const q of cleaned){
+        if(!seen.has(q)){ seen.add(q); uniq.push(q); }
+      }
+      return uniq;
+    }
+
+    const elCard = document.getElementById("card");
+    const elQ = document.getElementById("q");
+    const elSub = document.getElementById("sub");
+    const elProgress = document.getElementById("progress");
+
+    const btnStart = document.getElementById("startBtn");
+    const btnNext = document.getElementById("nextBtn");
+    const btnReset = document.getElementById("resetBtn");
+
+    function setCard(text, sub=""){
+      elQ.textContent = text;
+      elSub.textContent = sub;
+    }
+
+    function render(){
+      if(!started){
+        elProgress.textContent = "";
+        btnNext.disabled = true;
+        return;
+      }
+      const remaining = deck.length;
+      elProgress.innerHTML = `Progress: <b>${used}</b>/<b>${total}</b> · Remaining: <b>${remaining}</b>`;
+      btnNext.disabled = (remaining === 0);
+    }
+
+    function initDeck(){
+      deck = shuffle([...normalize(QUESTIONS)]);
+      total = deck.length;
+      used = 0;
+    }
+
+    function start(){
+      initDeck();
+      started = true;
+      if(total === 0){
+        setCard("질문이 없습니다", "");
+        render();
+        return;
+      }
+      next(); // 시작하자마자 1개 보여주기
+    }
+
+    function next(){
+      if(!started) return;
+      if(deck.length === 0){
+        setCard("끝!", "Reset을 누르면 다시 섞어서 시작합니다");
+        render();
+        return;
+      }
+      const q = deck.pop(); // 중복 방지
+      used += 1;
+      setCard(q, deck.length === 0 ? "마지막 질문입니다" : "");
+      render();
+    }
+
+    function reset(){
+      started = false;
+      initDeck();
+      setCard("Start를 눌러 질문을 시작하세요", "");
+      render();
+    }
+
+    btnStart.addEventListener("click", start);
+    btnNext.addEventListener("click", next);
+    btnReset.addEventListener("click", reset);
+
+    elCard.addEventListener("click", () => {
+      if(!started) start();
+      else next();
+    });
+    elCard.addEventListener("keydown", (e) => {
+      if(e.key === "Enter" || e.key === " "){
+        e.preventDefault();
+        if(!started) start();
+        else next();
+      }
+    });
+
+    reset();
+  </script>
+</body>
+</html>
